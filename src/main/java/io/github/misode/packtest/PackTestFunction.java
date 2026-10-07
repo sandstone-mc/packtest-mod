@@ -12,7 +12,7 @@ import net.minecraft.gametest.framework.*;
 
 import java.util.*;
 
-public record PackTestFunction(List<Step> steps, PackTestDirectives directives) {
+public record PackTestFunction(List<Step> steps, PackTestDirectives directives, String description) {
     public void run(GameTestHelper helper) {
         PackTestExecutor executor = new PackTestExecutor(helper, this.directives.maxTicks());
         executor.run(this);
@@ -24,10 +24,11 @@ public record PackTestFunction(List<Step> steps, PackTestDirectives directives) 
             List<String> lines) throws IllegalArgumentException {
         PackTestDirectives directives = new PackTestDirectives();
         List<Step> steps = new ArrayList<>();
+        String description = "";
         int i = 0;
 
         while (i < lines.size()) {
-            final int line = i + 1;
+            final int lineNumber = i + 1;
             StringBuilder builder = new StringBuilder(lines.get(i++).trim());
 
             while (!builder.isEmpty() && builder.charAt(builder.length() - 1) == '\\') {
@@ -40,26 +41,30 @@ public record PackTestFunction(List<Step> steps, PackTestDirectives directives) 
                 CommandFunction.checkCommandLineLength(builder);
             }
 
-            String command = builder.toString();
-            if (command.isEmpty()) continue;
+            String line = builder.toString();
+            if (line.isEmpty()) continue;
 
-            CommandFunction.checkCommandLineLength(command);
-            StringReader reader = new StringReader(command);
+            CommandFunction.checkCommandLineLength(line);
+            StringReader reader = new StringReader(line);
             if (!reader.canRead()) continue;
 
             if (reader.peek() == '#') {
-                parseDirective(reader, directives);
+                if (line.length() > 1 && line.charAt(1) == '>') {
+                    description = line.substring(2).trim();
+                } else {
+                    parseDirective(new StringReader(line), directives);
+                }
                 continue;
             }
 
             try {
-                steps.add(new Step(command, parseCommand(dispatcher, context, command), line));
+                steps.add(parseCommand(dispatcher, context, line, lineNumber));
             } catch (CommandSyntaxException e) {
-                throw new IllegalArgumentException("Whilst parsing command on line " + line + ": " + e.getMessage());
+                throw new IllegalArgumentException("Whilst parsing command on line " + lineNumber + ": " + e.getMessage());
             }
         }
 
-        return new PackTestFunction(steps, directives);
+        return new PackTestFunction(steps, directives, description);
     }
 
     private static void parseDirective(
@@ -77,17 +82,24 @@ public record PackTestFunction(List<Step> steps, PackTestDirectives directives) 
         }
     }
 
-    private static ContextChain<CommandSourceStack> parseCommand(
+    private static Step parseCommand(
             CommandDispatcher<CommandSourceStack> dispatcher,
             CommandSourceStack context,
-            String command) throws CommandSyntaxException {
+            String command,
+            int sourceLine) throws CommandSyntaxException {
         ParseResults<CommandSourceStack> parseResults = dispatcher.parse(command, context);
         Commands.validateParseResults(parseResults);
-        return ContextChain.tryFlatten(parseResults.getContext().build(command))
+        ContextChain<CommandSourceStack> chain = ContextChain.tryFlatten(parseResults.getContext().build(command))
                 .orElseThrow(() -> CommandSyntaxException.BUILT_IN_EXCEPTIONS
                         .dispatcherUnknownCommand()
                         .createWithContext(parseResults.getReader()));
+        String effectiveCommandName = chain.getTopContext().getLastChild().getNodes().stream()
+                .map(n -> n.getNode().getName())
+                .filter(n -> !n.isEmpty())
+                .findFirst()
+                .orElse("");
+        return new Step(command, chain, sourceLine, effectiveCommandName);
     }
 
-    public record Step(String command, ContextChain<CommandSourceStack> chain, int line) {}
+    public record Step(String command, ContextChain<CommandSourceStack> chain, int sourceLine, String commandName) {}
 }

@@ -1,8 +1,9 @@
 package io.github.misode.packtest.mixin;
 
-import io.github.misode.packtest.PackTestException;
 import io.github.misode.packtest.PackTest;
-import net.minecraft.util.Util;
+import io.github.misode.packtest.PackTestFunction;
+import io.github.misode.packtest.PackTestLibrary;
+import io.github.misode.packtest.TestMessages;
 import net.minecraft.gametest.framework.GameTestInfo;
 import net.minecraft.gametest.framework.LogTestReporter;
 import org.slf4j.Logger;
@@ -29,21 +30,25 @@ public class LogTestReporterMixin {
     @Inject(method = "onTestFailed", at = @At(value = "HEAD"), cancellable = true)
     private void onTestFailed(GameTestInfo testInfo, CallbackInfo ci) {
         if (PackTest.isAutoEnabled()) {
-            String testName = testInfo.id().toString();
-            String lineNumber = testInfo.getError() instanceof PackTestException err
-                    ? " on line " + err.getLine()
-                    : "";
-            String message = Util.describeError(testInfo.getError());
+            String text = TestMessages.failAnnotated(
+                testInfo,
+                PackTestLibrary.getLoaded(testInfo.id()),
+                testInfo.getError(),
+                PackTest.isAnnotationsEnabled()
+            );
             if (testInfo.isRequired()) {
-                if (PackTest.isAnnotationsEnabled()) {
-                    LOGGER.error(PackTest.wrapError("{} failed{}!") + "\n::error title=Test {} failed{}!::{}", testName, lineNumber, testName, lineNumber, message);
-                } else {
-                    LOGGER.error(PackTest.wrapError("{} failed{}! {}"), testName, lineNumber, message);
-                }
+                LOGGER.error("{}", text);
             } else {
-                LOGGER.warn(PackTest.wrapWarning("(optional) {} failed{}! {}"), testName, lineNumber, message);
+                LOGGER.warn("{}", text);
             }
             ci.cancel();
         }
+    }
+
+    @Inject(method = "onTestSuccess", at = @At(value = "HEAD"))
+    private void onTestSuccess(GameTestInfo testInfo, CallbackInfo ci) {
+        PackTestFunction fn = PackTestLibrary.getLoaded(testInfo.id());
+        if (fn == null) return;
+        LOGGER.info("{}", TestMessages.pass(testInfo, fn));
     }
 }

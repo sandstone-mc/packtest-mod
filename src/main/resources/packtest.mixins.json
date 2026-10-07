@@ -11,7 +11,7 @@
     "MappedRegistryMixin",
     "PackMixin",
     "PlayerListMixin",
-    "ReloadableServerResourcesMixin",
+    "ReportGameListenerMixin",
     "ServerFunctionLibraryMixin",
     "ServerPlayerMixin",
     "SimpleJsonResourceReloadListenerMixin",
