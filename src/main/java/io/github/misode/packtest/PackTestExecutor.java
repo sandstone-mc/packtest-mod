@@ -5,6 +5,7 @@ import com.mojang.brigadier.exceptions.SimpleCommandExceptionType;
 import io.github.misode.packtest.commands.assertions.AssertResult;
 import io.github.misode.packtest.dummy.Dummy;
 import net.minecraft.commands.CommandResultCallback;
+import net.minecraft.commands.CommandSource;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.commands.arguments.coordinates.Coordinates;
@@ -15,6 +16,7 @@ import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec2;
 import net.minecraft.world.phys.Vec3;
 import org.jetbrains.annotations.Nullable;
+import org.jspecify.annotations.NonNull;
 
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -24,6 +26,13 @@ import java.util.stream.Stream;
 public class PackTestExecutor {
     private static final SimpleCommandExceptionType ERROR_NOT_IN_TEST = new SimpleCommandExceptionType(
             Component.literal("Command can only be used inside a test"));
+    private static final CommandSource SILENT_SOURCE = new CommandSource() {
+        @Override public void sendSystemMessage(@NonNull Component message) {}
+        @Override public boolean acceptsSuccess() { return true; }
+        @Override public boolean acceptsFailure() { return true; }
+        @Override public boolean shouldInformAdmins() { return false; }
+        @Override public boolean alwaysAccepts() { return true; }
+    };
     private static @Nullable PackTestExecutor current;
 
     private final List<Supplier<Boolean>> awaits = new ArrayList<>();
@@ -78,7 +87,7 @@ public class PackTestExecutor {
         CommandSourceStack source = helper.getLevel().getServer().createCommandSourceStack()
                 .withLevel(helper.getLevel())
                 .withPosition(helper.absoluteVec(Vec3.ZERO))
-                .withSuppressedOutput();
+                .withSource(SILENT_SOURCE);
 
         Optional<Coordinates> coordinates = function.directives().dummy();
         if (coordinates.isPresent()) {
