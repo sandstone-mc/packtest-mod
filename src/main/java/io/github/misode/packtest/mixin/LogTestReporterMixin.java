@@ -1,8 +1,7 @@
 package io.github.misode.packtest.mixin;
 
 import io.github.misode.packtest.PackTestException;
-import io.github.misode.packtest.PackTestFunction;
-import io.github.misode.packtest.PackTestLibrary;
+import io.github.misode.packtest.PackTestExecutor;
 import io.github.misode.packtest.PackTest;
 import net.minecraft.util.Util;
 import net.minecraft.core.BlockPos;
@@ -31,8 +30,9 @@ public class LogTestReporterMixin {
     @SuppressWarnings("DataFlowIssue")
     @Inject(method = "onTestFailed", at = @At(value = "HEAD"), cancellable = true)
     private void onTestFailed(GameTestInfo testInfo, CallbackInfo ci) {
-        if (PackTest.isAutoEnabled()) {
-            String testName = testInfo.id().toString();
+        PackTestExecutor executor = PackTestExecutor.currentOrNull();
+        if (executor != null) {
+            String testName = executor.nameAndDescription();
             String lineNumber = testInfo.getError() instanceof PackTestException err
                     ? err.getLine()
                     : "";
@@ -46,6 +46,7 @@ public class LogTestReporterMixin {
             } else {
                 LOGGER.warn(PackTest.wrapWarning("(optional) {} failed{}! {}"), testName, lineNumber, message);
             }
+            PackTestExecutor.clear();
             ci.cancel();
         }
     }
@@ -53,11 +54,16 @@ public class LogTestReporterMixin {
     @SuppressWarnings("DataFlowIssue")
     @Inject(method = "onTestSuccess", at = @At(value = "HEAD"), cancellable = true)
     private void onTestSuccess(GameTestInfo testInfo, CallbackInfo ci) {
-        BlockPos blockPos = testInfo.getTestBlockPos();
-        if (blockPos == null) {
-            LOGGER.info("{} passed on tick {}!" , testInfo.id(), testInfo.getTick());
-        } else {
-            LOGGER.info("{} passed at {} on tick {}!" , testInfo.id(), blockPos.toShortString(), testInfo.getTick());
+        PackTestExecutor executor = PackTestExecutor.currentOrNull();
+        if (executor != null) {
+            String testName = executor.nameAndDescription();
+            BlockPos blockPos = testInfo.getTestBlockPos();
+            if (blockPos == null) {
+                LOGGER.info("{} passed on tick {}!" , testName, testInfo.getTick());
+            } else {
+                LOGGER.info("{} passed at {} on tick {}!" , testName, blockPos.toShortString(), testInfo.getTick());
+            }
+            PackTestExecutor.clear();
         }
     }
 }

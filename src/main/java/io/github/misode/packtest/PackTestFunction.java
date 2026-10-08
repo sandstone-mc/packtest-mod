@@ -10,12 +10,13 @@ import net.minecraft.commands.Commands;
 import net.minecraft.commands.functions.CommandFunction;
 import net.minecraft.gametest.framework.*;
 import net.minecraft.resources.Identifier;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.*;
 
-public record PackTestFunction(List<Step> steps, PackTestDirectives directives) {
+public record PackTestFunction(List<Step> steps, PackTestDirectives directives, @Nullable String description) {
     public void run(GameTestHelper helper, Identifier id) {
-        PackTestExecutor executor = new PackTestExecutor(helper, this.directives.maxTicks(), id);
+        PackTestExecutor executor = new PackTestExecutor(helper, this.directives.maxTicks(), id, this.description);
         executor.run(this);
     }
 
@@ -25,6 +26,7 @@ public record PackTestFunction(List<Step> steps, PackTestDirectives directives) 
             List<String> lines) throws IllegalArgumentException {
         PackTestDirectives directives = new PackTestDirectives();
         List<Step> steps = new ArrayList<>();
+        String description = null;
         int i = 0;
 
         while (i < lines.size()) {
@@ -49,7 +51,11 @@ public record PackTestFunction(List<Step> steps, PackTestDirectives directives) 
             if (!reader.canRead()) continue;
 
             if (reader.peek() == '#') {
-                parseDirective(reader, directives);
+                if (command.length() > 1 && command.charAt(1) == '>') {
+                    description = command.substring(2).trim();
+                } else {
+                    parseDirective(reader, directives);
+                }
                 continue;
             }
 
@@ -60,7 +66,7 @@ public record PackTestFunction(List<Step> steps, PackTestDirectives directives) 
             }
         }
 
-        return new PackTestFunction(steps, directives);
+        return new PackTestFunction(steps, directives, description);
     }
 
     private static void parseDirective(

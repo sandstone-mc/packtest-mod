@@ -35,11 +35,17 @@ public class PackTestExecutor {
     private String commandName = "";
     private boolean done = false;
     public final Identifier testId;
+    private final @Nullable String description;
 
-    public PackTestExecutor(GameTestHelper helper, int timeout, Identifier testId) {
+    public PackTestExecutor(GameTestHelper helper, int timeout, Identifier testId, @Nullable String description) {
         this.helper = helper;
         this.timeout = timeout;
         this.testId = testId;
+        this.description = description;
+    }
+
+    public String nameAndDescription() {
+        return this.description == null ? this.testId.toString() : this.testId + " (" + this.description + ")";
     }
 
     public static PackTestExecutor current() throws CommandSyntaxException {
@@ -49,6 +55,14 @@ public class PackTestExecutor {
         return current;
     }
 
+    public static @Nullable PackTestExecutor currentOrNull() {
+        return current;
+    }
+
+    public static void clear() {
+        current = null;
+    }
+
     public void run(PackTestFunction function) {
         CommandSourceStack source = createCommandSourceStack(function);
         Queue<PackTestFunction.Step> steps = new ArrayDeque<>(function.steps());
@@ -56,22 +70,18 @@ public class PackTestExecutor {
         Runnable tick = () -> {
             current = this;
 
-            try {
-                if (!this.awaits.isEmpty() && this.awaits.getFirst().get()) {
-                    this.awaits.removeFirst();
-                }
-                while (!steps.isEmpty() && !this.done && this.awaits.isEmpty()) {
-                    PackTestFunction.Step step = steps.poll();
-                    this.line = step.line();
-                    this.commandName = step.commandName();
-                    Commands.executeCommandInContext(source, ctx ->
-                            ExecutionContext.queueInitialCommandExecution(ctx, step.command(), step.chain(), source, CommandResultCallback.EMPTY));
-                }
-                if (!this.done && this.awaits.isEmpty()) {
-                    this.succeed();
-                }
-            } finally {
-                current = null;
+            if (!this.awaits.isEmpty() && this.awaits.getFirst().get()) {
+                this.awaits.removeFirst();
+            }
+            while (!steps.isEmpty() && !this.done && this.awaits.isEmpty()) {
+                PackTestFunction.Step step = steps.poll();
+                this.line = step.line();
+                this.commandName = step.commandName();
+                Commands.executeCommandInContext(source, ctx ->
+                        ExecutionContext.queueInitialCommandExecution(ctx, step.command(), step.chain(), source, CommandResultCallback.EMPTY));
+            }
+            if (!this.done && this.awaits.isEmpty()) {
+                this.succeed();
             }
         };
 
