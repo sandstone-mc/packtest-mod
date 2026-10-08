@@ -50,8 +50,7 @@ public class LogTestReporterMixin {
         }
     }
 
-    @SuppressWarnings("DataFlowIssue")
-    @Inject(method = "onTestSuccess", at = @At(value = "HEAD"), cancellable = true)
+    @Inject(method = "onTestSuccess", at = @At(value = "HEAD"))
     private void onTestSuccess(GameTestInfo testInfo, CallbackInfo ci) {
         BlockPos blockPos = testInfo.getTestBlockPos();
         if (blockPos == null) {
